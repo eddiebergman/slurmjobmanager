@@ -32,13 +32,12 @@ from slurmjobmanager import SlurmEnvironment, SlurmJob
 slurm_env = SlurmEnvironment('username')
 
 class MyJobType(SlurmJob):
-    """ ...implements all the abstract methods of SlurmJob """
     ...
 
-def create_jobs(env, config) -> List[MyJobType]:
+def create_jobs(env) -> List[MyJobType]:
     ...
 
-myjobs = create_jobs(slurm_env, 'some_config.json')
+myjobs = create_jobs(slurm_env)
 for job in myjobs:
     job.queue()
 
