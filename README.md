@@ -18,7 +18,8 @@ pip install -e .
 The library has two main classes:
 * `SlurmEnvironment`
     Manages retrieving information from Slurm about status of jobs as well
-    as queuing and cancelling jobs.
+    as queuing and cancelling jobs. It will also query any jobs for 
+    slurm arguements and create the associated batch file.
 
 * `SlurmJob`
     An abstract class defining what is required for a job to be managed by
@@ -53,3 +54,83 @@ print(slurm_env.jobs_info())
 
 Please see the relatively small source code for a full list of methods available
 for both `SlurmJob` and `SlurmEnvironment`.
+
+## Implementing SlurmJob Example
+Here's some simplified code I am using for the TPOT Benchmark that should give an idea
+of how job classes can be structured.
+
+class TPOTJob(SlurmJob):
+```Python
+    @abstractmethod
+    def __init__(self, env, seed, task, times, benchdir, python_script):
+        super().__init__(env)
+        self.seed = seed
+        self.task = task
+        self.times = sorted(times)
+        self.benchdir = benchdir
+        self.python_script = python_script
+        self.folders = { ... }
+        self.files = { ... }
+
+    def name(self):
+        return f'{self.seed}_{self.task}_etc...'
+
+    def complete(self):
+        files = self.files['classifications'] + self.files['predictions']
+        return all(os.path.exists(file) for file in files)
+
+    def ready(self):
+        return not self.blocked()
+
+    def failed(self):
+        if (
+            not self.complete()
+            and os.path.exists(self.files['slurm_out'])
+            and not self.in_progress()
+        ):
+            return True
+        else:
+            return False
+
+    def blocked(self):
+        # No dependancies
+        return False
+
+    def setup(self):
+        if not os.path.exists(self.folders['root']):
+            os.mkdir(self.folders['root'])
+
+        for path in self.folders.values():
+            if not os.path.exists(path):
+                os.mkdir(path)
+
+        config = { ... }
+        with open(self.files['config'], 'w') as f:
+            json.write(config, f)
+
+    def reset(self):
+        rmtree(self.folders['root'])
+
+    def slurm_args(self):
+        time = max(self.times)
+        return {
+            'job-name': self.name(),
+            'nodes': 1,
+            'ntasks': 1,
+            'cpus-per-task': 4,
+            'output': self.files['slurm_out'],
+            'error': self.files['slurm_err']
+            'export': 'ALL',
+            'mem': 16000,
+            **self.env.slurm_time_and_partition(time, buffer=0.25)
+        }
+
+    def slurm_opts(self):
+        return []
+
+    def slurm_script_path(self):
+        return self.files['slurm_script']
+
+    def slurm_command(self):
+        return f'python {self.python_script} {self.files['config']}'
+```
