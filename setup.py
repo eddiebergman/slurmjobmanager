@@ -12,7 +12,7 @@ with open(os.path.join("README.md")) as fid:
     README = fid.read()
 
 setuptools.setup(
-    name="slurm-job-manager",
+    name="slurmjobmanager",
     author="Eddie Bergman",
     author_email="Edward.Bergman@uni-siegen.de",
     maintainer="Eddie Bergman",
@@ -25,7 +25,7 @@ setuptools.setup(
     packages=setuptools.find_packages(
         include=["slurmjobmanager.*", "slurmjobmanager"], 
     ),
-    package_data={"": ["*.md", "py.typed"]},
+    package_data={"": ["*.md","py.typed"]},
     python_requires=">=3.7",
     install_requires=[],
     extras_require={
