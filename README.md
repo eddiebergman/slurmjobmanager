@@ -59,9 +59,9 @@ for both `SlurmJob` and `SlurmEnvironment`.
 Here's some simplified code I am using for the TPOT Benchmark that should give an idea
 of how job classes can be structured.
 
-class TPOTJob(SlurmJob):
 ```Python
-    @abstractmethod
+class TPOTJob(SlurmJob):
+
     def __init__(self, env, seed, task, times, benchdir, python_script):
         super().__init__(env)
         self.seed = seed
