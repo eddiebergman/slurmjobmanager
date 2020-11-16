@@ -340,3 +340,43 @@ class SlurmEnvironment(Environment[SlurmJob]):
                 _jobs_info[category].append(jobname)
 
         self._jobs_info = _jobs_info
+
+    def slurm_time_and_partition(
+        self,
+        time: int,
+        buffer: float = 0.25
+    ) -> Dict[str, str]:
+        """
+        Params
+        ======
+        time: int
+            The amount of time in minutes for the job
+
+        buffer: float
+            The percent of extra time to add on as a buffer
+
+        Returns
+        =======
+        Dict[str, str]
+            The partition to use and the allocated time as a str
+        """
+        allocated_time = int(time * (1 + buffer))
+        d = int(allocated_time / (60*24))
+        h = int(allocated_time / 60)
+        m = int(allocated_time % 60)
+
+        short_max = (2 * 60)
+        medium_max = (1 * 24 * 60)
+        defq_max = (4 * 24 * 60)
+        # zfill(2) just pre-pads with 0's to a str length of 2
+        time_str = f'{d}-{str(h).zfill(2)}:{str(m).zfill(2)}:00'
+        if allocated_time < short_max:
+            return {'partition': 'short', 'time': time_str }
+        elif allocated_time < medium_max:
+            return {'partition': 'medium', 'time': time_str }
+        elif allocated_time < defq_max:
+            return {'partition': 'defq', 'time': time_str }
+        else:
+            raise ValueError(f'{self.name()=} requires too much time,' 
+                             + f'{allocated_time}, possible to queue'
+                             + 'on the smp partition if required')
