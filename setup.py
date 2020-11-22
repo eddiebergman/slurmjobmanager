@@ -22,10 +22,8 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     license="BSD 3-clause",
     version="0.1.0",
-    packages=setuptools.find_packages(
-        include=["slurmjobmanager.*", "slurmjobmanager"], 
-    ),
-    package_data={"": ["*.md","py.typed"]},
+    packages=setuptools.find_packages(),
+    package_data={'slurmjobmanager': ['py.typed']},
     python_requires=">=3.7",
     install_requires=[],
     extras_require={
