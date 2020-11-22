@@ -362,7 +362,7 @@ class SlurmEnvironment(Environment[SlurmJob]):
         """
         allocated_time = int(time * (1 + buffer))
         d = int(allocated_time / (60*24))
-        h = int(allocated_time / 60)
+        h = int((allocated_time - d * 24 * 60) / 60)
         m = int(allocated_time % 60)
 
         short_max = (2 * 60)
