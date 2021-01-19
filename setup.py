@@ -2,7 +2,7 @@ import os
 import setuptools
 import sys
 
-if sys.version_info < (3, 6):
+if sys.version_info < (3, 5):
     raise ValueError(f"Unsupported Python version {sys.version_info.major}."
                      + f"{sys.version_info.micro}.{sys.version_info.micro}"
                      + f"found. Requires Python 3.5 or higher."
@@ -24,7 +24,7 @@ setuptools.setup(
     version="0.1.0",
     packages=setuptools.find_packages(),
     package_data={'slurmjobmanager': ['py.typed']},
-    python_requires=">=3.6",
+    python_requires=">=3.5",
     install_requires=[],
     extras_require={
         "test": [
