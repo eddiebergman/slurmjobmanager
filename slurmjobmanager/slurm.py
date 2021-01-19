@@ -377,6 +377,6 @@ class SlurmEnvironment(Environment[SlurmJob]):
         elif allocated_time < defq_max:
             return {'partition': 'defq', 'time': time_str }
         else:
-            raise ValueError(f'{self.name()=} requires too much time,' 
+            raise ValueError('Requires too much time,'
                              + f'{allocated_time}, possible to queue'
                              + 'on the smp partition if required')
