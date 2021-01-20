@@ -144,7 +144,7 @@ class SlurmEnvironment(Environment):
                 raise RuntimeError(f'Job {job.name()} in progress, force a' + ' cancel, reset and requeue with'
                                    + ' `force=True`')
 
-        if job.failed():
+        if job.failed(self):
             if force:
                 job.reset()
             else:

@@ -4,6 +4,7 @@ Specifies the kind of information a job should be able to provide
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
 from typing import Protocol
+from .environment import Environment
 
 class Job(Protocol):
 
@@ -11,7 +12,7 @@ class Job(Protocol):
 
     def complete(self) -> bool: ...
 
-    def failed(self) -> bool: ...
+    def failed(self, env: Environment) -> bool: ...
 
     def blocked(self) -> bool: ...
 

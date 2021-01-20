@@ -59,7 +59,7 @@ class LocalEnvironment(Environment):
                 raise RuntimeError(f'Job {job.name()} already complete, force a'
                                    + ' reset and requeue with `force=True`')
 
-        if job.failed():
+        if job.failed(self):
             if force:
                 job.reset()
             else:
