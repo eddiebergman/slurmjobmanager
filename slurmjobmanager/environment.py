@@ -3,12 +3,11 @@ Defines the base tasks an Environment should be able to do
 """
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
-from typing import Protocol, Generic, TypeVar, Dict, Any
+from typing import Protocol, Dict, Any, Mapping
+from .job import Job
 
-T = TypeVar('T', contravariant=True)
+class Environment(Protocol):
 
-class Environment(Protocol, Generic[T]):
-
-    def run_job(self, job: T) -> None: ...
+    def run(self, job: Job, options: Mapping[str, Any]) -> None: ...
 
     def info(self) -> Dict[str, Any]: ...

@@ -7,57 +7,12 @@ of running in local scenarios.
 from __future__ import annotations
 
 import os
-from abc import abstractmethod, ABC
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Mapping
 
 from .environment import Environment
 from .job import Job
 
-class LocalJob(Job, ABC):
-
-    @abstractmethod
-    def name(self) -> str:
-        """"
-        Returns the name of this jobs
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def complete(self) -> bool:
-        """ Indicates whether this job is complete or not """
-        raise NotImplementedError
-
-    @abstractmethod
-    def ready(self) -> bool:
-        """ Wether the job is ready to be queued """
-        raise NotImplementedError
-
-    @abstractmethod
-    def failed(self) -> bool:
-        """ Indicate whether this job has ran and failed """
-        raise NotImplementedError
-
-    @abstractmethod
-    def blocked(self) -> bool:
-        """ Indicate whether this job can not be run due to dependancies """
-        raise NotImplementedError
-
-    @abstractmethod
-    def command(self) -> str:
-        """ The actual command to be run """
-        raise NotImplementedError
-
-    @abstractmethod
-    def setup(self) -> None:
-        """ Any setup that must be done before a job is queued """
-        raise NotImplementedError
-
-    @abstractmethod
-    def reset(self) -> None:
-        """ Reset the job to allow it to be run again """
-        raise NotImplementedError
-
-class LocalEnvironment(Environment[LocalJob]):
+class LocalEnvironment(Environment):
     """
     Works like an environemnt to have consistency between local and
     slurm environments. Due to the variance in systems, provides very little
@@ -66,12 +21,12 @@ class LocalEnvironment(Environment[LocalJob]):
 
     def __init__(self) -> None:
         super().__init__()
-        self.jobs_run : List[LocalJob] = []
+        self.jobs_run : List[Job] = []
 
-    def run_job(
+    def run(
         self,
-        job: LocalJob,
-        force: bool = False
+        job: Job,
+        options: Mapping[str, Any]
       ) -> None:
         """
         Simply runs the command associated with this job. Care must be
@@ -89,6 +44,7 @@ class LocalEnvironment(Environment[LocalJob]):
             Whether to force a requeue if the job is in progress or completed.
             Note: Will perform a job reset
         """
+        force = options.get('force', False)
         if job.blocked():
             raise RuntimeError(f'Job {job.name()} has indicated it is currently'
                                + 'blocked')

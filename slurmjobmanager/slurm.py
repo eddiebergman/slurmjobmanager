@@ -5,101 +5,13 @@ Module to handle Slurm related jobs
 from __future__ import annotations
 
 import os
-from abc import abstractmethod, ABC
-from typing import Mapping, Iterable, List, Dict, Any
+from typing import Mapping, Iterable, List, Dict, Any, Optional
 from subprocess import check_output
 
 from .environment import Environment
 from .job import Job
 
-class SlurmJob(Job, ABC):
-    """
-    An abstract class that describes whats required for job to be run
-    in a SlurmEnvironment. Inheriting this class and implementing the abstract
-    methods should be enough to allow that class of Job to be run on Slurm
-    """
-
-    @abstractmethod
-    def name(self) -> str:
-        """"
-        Returns the name of this jobs
-
-        Note:  SLURM truncates names around the ~20 char limit
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def complete(self) -> bool:
-        """ Indicates whether this job is complete or not """
-        raise NotImplementedError
-
-    @abstractmethod
-    def ready(self) -> bool:
-        """ Wether the job is ready to be queued """
-        raise NotImplementedError
-
-    @abstractmethod
-    def failed(self) -> bool:
-        """ Indicate whether this job has ran and failed """
-        raise NotImplementedError
-
-    @abstractmethod
-    def blocked(self) -> bool:
-        """ Indicate whether this job can not be run due to dependancies """
-        raise NotImplementedError
-
-    @abstractmethod
-    def slurm_args(self) -> Mapping[str, Any]:
-        """ Provides the arguments for Slurm's sbatch """
-        raise NotImplementedError
-
-    @abstractmethod
-    def slurm_opts(self) -> Iterable[str]:
-        """ Provides any options for Slurm's sbatch """
-        raise NotImplementedError
-
-    @abstractmethod
-    def slurm_command(self) -> str:
-        """ The actual command to be run by sbatch """
-        raise NotImplementedError
-
-    @abstractmethod
-    def slurm_path(self) -> str:
-        """ The location of the slurm script to run """
-        raise NotImplementedError
-
-    @abstractmethod
-    def setup(self) -> None:
-        """ Any setup that must be done before a job is queued """
-        raise NotImplementedError
-
-    @abstractmethod
-    def reset(self) -> None:
-        """ Reset the job to allow it to be run again """
-        raise NotImplementedError
-
-    def create_slurm_config(self) -> None:
-        """
-        Creates the slurmscript so the job can be run in the SlurmEnvironment
-        This will ask the job to do its setup() first.
-        """
-        self.setup()
-
-        args = self.slurm_args()
-        opts = self.slurm_opts()
-        command = self.slurm_command()
-        script_path = self.slurm_path()
-
-        with open(script_path, 'w') as outfile:
-            outfile.writelines('#!/bin/bash\n')
-            for key, val in args.items():
-                outfile.writelines(f'#SBATCH --{key}={val}\n')
-            for opt in opts:
-                outfile.writelines(f'#SBATCH --{opt}\n')
-
-            outfile.writelines(command)
-
-class SlurmEnvironment(Environment[SlurmJob]):
+class SlurmEnvironment(Environment):
     """
     Communicates with slurm for information on jobs.
     May have to use the refresh functionality if using in
@@ -159,26 +71,41 @@ class SlurmEnvironment(Environment[SlurmJob]):
         """
         os.system(f'scancel -n {name}')
 
-    def cancel_jobs(self, jobs: Iterable[SlurmJob]) -> None:
+    def cancel_job(self, job: Job) -> None:
         """
         Params
         ======
-        job : SlurmJob
+        job : Job
             The job to cancel
         """
-        for job in jobs:
-            self.cancel_by_name(job.name())
+        self.cancel_by_name(job.name())
 
-    def run_job(self, job: SlurmJob, force: bool = False):
-        self.queue_job(job, force)
-
-    def queue_job(
+    def run(
         self,
-        job: SlurmJob,
+        job: Job,
+        options: Mapping[str, Any],
+    ) -> None:
+        slurm_args = options['slurm_args']
+        slurm_script_path = options['slurm_script_path']
+        slurm_opts = options.get('slurm_opts', [])
+        force = options.get('force', False)
+
+        self.queue(job,
+                   args=slurm_args,
+                   script_path=slurm_script_path,
+                   opts=slurm_opts,
+                   force=force)
+
+    def queue(
+        self,
+        job: Job,
+        args: Mapping[str, Any],
+        script_path: str,
+        opts: Iterable[str],
         force: bool = False
       ) -> None:
         """
-        Must include either job-object or a name.
+        Must include either job-object
         Will fail if the job is not ready to be run or if it is already
         in progress or finished.
 
@@ -187,7 +114,7 @@ class SlurmEnvironment(Environment[SlurmJob]):
 
         Params
         ======
-        job : SlurmJob
+        job : Job
             The job to cancel
 
         force: bool = False
@@ -214,8 +141,7 @@ class SlurmEnvironment(Environment[SlurmJob]):
                 self.cancel_by_name(job.name())
                 job.reset()
             else:
-                raise RuntimeError(f'Job {job.name()} in progress, force a'
-                                   + ' cancel, reset and requeue with'
+                raise RuntimeError(f'Job {job.name()} in progress, force a' + ' cancel, reset and requeue with'
                                    + ' `force=True`')
 
         if job.failed():
@@ -226,13 +152,15 @@ class SlurmEnvironment(Environment[SlurmJob]):
                                    + ' has failed, force a reset and requeue'
                                    + ' with `force=True`')
 
-        slurm_script_path = job.slurm_path()
-        if not os.path.exists(slurm_script_path):
-            job.create_slurm_config()
+        if not os.path.exists(script_path):
+            self.create_slurm_script(args=args,
+                                     command=job.command(),
+                                     script_path=script_path,
+                                     opts=opts)
 
-        os.system(f'sbatch {slurm_script_path}')
+        os.system(f'sbatch {script_path}')
 
-    def info(self, refresh=False) -> Dict[str, Any]:
+    def info(self) -> Dict[str, Any]:
         """
         Returns
         =======
@@ -240,7 +168,7 @@ class SlurmEnvironment(Environment[SlurmJob]):
             A dictionary with the keys 'running', 'pending', 'unknown' depending
             on the status of the jobs known to Slurm.
         """
-        if self._info == {} or refresh:
+        if self._info == {}:
             self.refresh_info()
         return self._info
 
@@ -273,3 +201,23 @@ class SlurmEnvironment(Environment[SlurmJob]):
                 info[category].append(jobname)
 
         self._info = info
+
+    def create_slurm_script(
+        self,
+        args : Mapping[str, Any],
+        command : str,
+        script_path: str,
+        opts: Optional[Iterable[str]] = None
+    ) -> None:
+        """
+        Creates the slurmscript so the job can be run in the SlurmEnvironment
+        """
+        opts = [] if opts is None else opts
+        with open(script_path, 'w') as outfile:
+            outfile.writelines('#!/bin/bash\n')
+            for key, val in args.items():
+                outfile.writelines(f'#SBATCH --{key}={val}\n')
+            for opt in opts:
+                outfile.writelines(f'#SBATCH --{opt}\n')
+
+            outfile.writelines(command)
