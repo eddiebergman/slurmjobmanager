@@ -7,32 +7,13 @@ of running in local scenarios.
 from __future__ import annotations
 
 import os
-from abc import abstractmethod
-from typing import List
+from abc import abstractmethod, ABC
+from typing import List, Dict, Any
 
 from .environment import Environment
 from .job import Job
 
-class LocalJob(Job):
-    """
-    Defines a job that is to be run locally, does not provide the following
-    methods:
-     - 'in_progress'
-     - 'running'
-     - 'cancel'
-    This is due to the variability of local running environments.
-    """
-
-    def __init__(self, environment: LocalEnvironment,  *args, **kwargs):
-        """
-
-        Params
-        ======
-        env: LocalEnvironment
-            A local environment to run in
-        """
-        super().__init__()
-        self.env = environment
+class LocalJob(Job, ABC):
 
     @abstractmethod
     def name(self) -> str:
@@ -40,7 +21,6 @@ class LocalJob(Job):
         Returns the name of this jobs
         """
         raise NotImplementedError
-
 
     @abstractmethod
     def complete(self) -> bool:
@@ -77,61 +57,6 @@ class LocalJob(Job):
         """ Reset the job to allow it to be run again """
         raise NotImplementedError
 
-    def pending(self) -> bool:
-        """
-        LocalJob's are considered to not be pending and run when a command is 
-        set.
-
-        Returns
-        =======
-        false: bool
-        """
-        return False
-
-    def running(self) -> bool:
-        """
-        Can not determine if a job is running in local environment.
-
-        Returns
-        =======
-        ERROR
-        """
-        raise RuntimeError('LocalJob and LocalEnvironment do not provide'
-                           + ' information on running or in progress jobs.')
-
-    def in_progress(self) -> bool:
-        """"
-        Can not determine if a job is running in local environment.
-
-        Returns
-        =======
-        ERROR
-        """
-        raise RuntimeError('LocalJob and LocalEnvironment do not provide'
-                           + ' information on running or in progress jobs.')
-
-    def run(self, force: bool = False) -> None:
-        """
-        Params
-        ======
-        force: bool = False
-            Whether to force the job in the case it is already in progress,
-            completed or failed. This will ask the job to reset itself so it
-            can be run again.
-        """
-        self.env.queue_job(self, force=force)
-
-    def cancel(self) -> None:
-        """"
-        Can not cancel a job in localenvironment
-
-        Returns
-        =======
-        ERROR
-        """
-        raise RuntimeError('LocalJob and LocalEnvironment do not job canceling,'
-                           + ' use system method of ending process')
-
 class LocalEnvironment(Environment[LocalJob]):
     """
     Works like an environemnt to have consistency between local and
@@ -141,54 +66,9 @@ class LocalEnvironment(Environment[LocalJob]):
 
     def __init__(self) -> None:
         super().__init__()
+        self.jobs_run : List[LocalJob] = []
 
-    def pending_jobs(self) -> List[str]:
-        """
-        Cannot query pending jobs in LocalEnvironment
-
-        Returns
-        =======
-        ERROR
-        """
-        raise RuntimeError('LocalEnvironment does not provide'
-                           + ' information on jobs.')
-
-    def running_jobs(self) -> List[str]:
-        """
-        Cannot query running jobs in LocalEnvironment
-
-        Returns
-        =======
-        ERROR
-        """
-        raise RuntimeError('LocalEnvironment does not provide'
-                           + ' information on jobs.')
-
-    def in_progress_jobs(self) -> List[str]:
-        """
-        Cannot query if job status is unknown in LocalEnvironment
-
-        =======
-        ERROR
-        """
-        raise RuntimeError('LocalEnvironment does not provide'
-                           + ' information on jobs.')
-
-    def cancel_by_name(self, name: str) -> None:
-        """
-        Can not cancel in LocalEnvironment
-        """
-        raise RuntimeError('LocalEnvironment does not provide job cancellation,'
-                           + ' use system method to end this process.')
-
-    def cancel_job(self, job: LocalJob) -> None:
-        """
-        Can not cancel in LocalEnvironment
-        """
-        raise RuntimeError('LocalEnvironment does not provide job cancellation,'
-                           + ' use system method to end this process.')
-
-    def queue_job(
+    def run_job(
         self,
         job: LocalJob,
         force: bool = False
@@ -233,3 +113,7 @@ class LocalEnvironment(Environment[LocalJob]):
 
         job.setup()
         os.system(f'{job.command()}')
+        self.jobs_run.append(job)
+
+    def info(self) -> Dict[str, Any]:
+        return {'jobs_run' : self.jobs_run}

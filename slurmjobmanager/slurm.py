@@ -20,17 +20,6 @@ class SlurmJob(Job, ABC):
     """
 
     @abstractmethod
-    def __init__(self, environment: SlurmEnvironment, *args, **kwargs):
-        """
-        Params
-        ======
-        environment: SlurmEnvironment
-            The slurm environment to be run in
-        """
-        super().__init__()
-        self.env = environment
-
-    @abstractmethod
     def name(self) -> str:
         """"
         Returns the name of this jobs
@@ -75,7 +64,7 @@ class SlurmJob(Job, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def slurm_script_path(self) -> str:
+    def slurm_path(self) -> str:
         """ The location of the slurm script to run """
         raise NotImplementedError
 
@@ -89,61 +78,7 @@ class SlurmJob(Job, ABC):
         """ Reset the job to allow it to be run again """
         raise NotImplementedError
 
-    def pending(self) -> bool:
-        """
-        Returns
-        =======
-        bool
-            Whether the job is pending in the SlurmEnvironment
-        """
-        pending_jobs = self.env.pending_jobs()
-        return self.name() in pending_jobs
-
-    def running(self) -> bool:
-        """
-        Returns
-        =======
-        bool
-            Whether the job is running in the SlurmEnvironment
-        """
-        running_jobs = self.env.running_jobs()
-        return self.name() in running_jobs
-
-    def unknown(self) -> bool:
-        """
-        Returns
-        =======
-        bool
-            Whether the status of this job is unknown in the SlurmEnvironment
-        """
-        unknown_jobs = self.env.unknown_jobs()
-        return self.name() in unknown_jobs
-
-    def in_progress(self) -> bool:
-        """
-        Returns
-        =======
-        bool:
-            Whether the job is currently in progress in the SlurmEnvironment
-        """
-        return self.pending() or self.running()
-
-    def run(self, force: bool = False) -> None:
-        """
-        Params
-        ======
-        force: bool = False
-            Whether to force the job in the case it is already in progress,
-            completed or failed. This will ask the job to reset itself so it
-            can be run again.
-        """
-        self.env.queue_job(self, force=force)
-
-    def cancel(self) -> None:
-        """ Cancels the job if it is queued, has no effect otherwise """
-        self.env.cancel_job(self)
-
-    def create(self) -> None:
+    def create_slurm_config(self) -> None:
         """
         Creates the slurmscript so the job can be run in the SlurmEnvironment
         This will ask the job to do its setup() first.
@@ -153,7 +88,7 @@ class SlurmJob(Job, ABC):
         args = self.slurm_args()
         opts = self.slurm_opts()
         command = self.slurm_command()
-        script_path = self.slurm_script_path()
+        script_path = self.slurm_path()
 
         with open(script_path, 'w') as outfile:
             outfile.writelines('#!/bin/bash\n')
@@ -171,7 +106,10 @@ class SlurmEnvironment(Environment[SlurmJob]):
     an interactive context.
     """
 
-    def __init__(self, username: str) -> None:
+    def __init__(
+        self,
+        username: str,
+    ) -> None:
         """
         Params
         ======
@@ -180,7 +118,7 @@ class SlurmEnvironment(Environment[SlurmJob]):
         """
         super().__init__()
         self.username = username
-        self._jobs_info : Dict[str, List[str]] = {}
+        self._info : Dict[str, List[str]] = {}
 
     def pending_jobs(self) -> List[str]:
         """
@@ -189,8 +127,8 @@ class SlurmEnvironment(Environment[SlurmJob]):
         List[str]:
             A list of jobs with the status pending 'P'
         """
-        jobs_info = self.jobs_info()
-        return jobs_info['pending']
+        info = self.info()
+        return info['pending']
 
     def running_jobs(self) -> List[str]:
         """
@@ -199,8 +137,8 @@ class SlurmEnvironment(Environment[SlurmJob]):
         List[str]:
             A list of jobs with the status pending 'R'
         """
-        jobs_info = self.jobs_info()
-        return jobs_info['running']
+        info = self.info()
+        return info['running']
 
     def unknown_jobs(self) -> List[str]:
         """
@@ -209,17 +147,8 @@ class SlurmEnvironment(Environment[SlurmJob]):
         List[str]:
             returns the list of jobs with a status other than pending or running
         """
-        jobs_info = self.jobs_info()
-        return jobs_info['unknown']
-
-    def in_progress_jobs(self) -> List[str]:
-        """
-        Returns
-        =======
-        List[str]:
-            A list of any jobs that are pending or running
-        """
-        return self.pending_jobs() + self.running_jobs()
+        info = self.info()
+        return info['unknown']
 
     def cancel_by_name(self, name: str) -> None:
         """
@@ -230,14 +159,18 @@ class SlurmEnvironment(Environment[SlurmJob]):
         """
         os.system(f'scancel -n {name}')
 
-    def cancel_job(self, job: SlurmJob) -> None:
+    def cancel_jobs(self, jobs: Iterable[SlurmJob]) -> None:
         """
         Params
         ======
         job : SlurmJob
             The job to cancel
         """
-        self.cancel_by_name(job.name())
+        for job in jobs:
+            self.cancel_by_name(job.name())
+
+    def run_job(self, job: SlurmJob, force: bool = False):
+        self.queue_job(job, force)
 
     def queue_job(
         self,
@@ -261,6 +194,7 @@ class SlurmEnvironment(Environment[SlurmJob]):
             Whether to force a requeue if the job is in progress or completed.
             Note: Will perform a job reset
         """
+        in_progress_jobs = self.running_jobs() + self.pending_jobs()
         if job.blocked():
             raise RuntimeError(f'Job {job.name()} has indicated it is currently'
                                + 'blocked')
@@ -275,9 +209,9 @@ class SlurmEnvironment(Environment[SlurmJob]):
                 raise RuntimeError(f'Job {job.name()} already complete, force a'
                                    + ' reset and requeue with `force=True`')
 
-        if job.in_progress():
+        if job.name() in in_progress_jobs:
             if force:
-                job.cancel()
+                self.cancel_by_name(job.name())
                 job.reset()
             else:
                 raise RuntimeError(f'Job {job.name()} in progress, force a'
@@ -292,14 +226,13 @@ class SlurmEnvironment(Environment[SlurmJob]):
                                    + ' has failed, force a reset and requeue'
                                    + ' with `force=True`')
 
-        slurm_script_path = job.slurm_script_path()
-
+        slurm_script_path = job.slurm_path()
         if not os.path.exists(slurm_script_path):
-            job.create()
+            job.create_slurm_config()
 
         os.system(f'sbatch {slurm_script_path}')
 
-    def jobs_info(self) -> Dict[str, List[str]]:
+    def info(self, refresh=False) -> Dict[str, Any]:
         """
         Returns
         =======
@@ -307,9 +240,9 @@ class SlurmEnvironment(Environment[SlurmJob]):
             A dictionary with the keys 'running', 'pending', 'unknown' depending
             on the status of the jobs known to Slurm.
         """
-        if self._jobs_info == {}:
+        if self._info == {} or refresh:
             self.refresh_info()
-        return self._jobs_info
+        return self._info
 
     def refresh_info(self) -> None:
         """
@@ -321,9 +254,9 @@ class SlurmEnvironment(Environment[SlurmJob]):
         call this if you think a job may have changed status.
         """
         command = f'squeue -u {self.username} -h -o %t-%j'.split(' ')
-        info = check_output(command).decode('utf-8').split('\n')
+        raw_info = check_output(command).decode('utf-8').split('\n')
 
-        _jobs_info : Dict[str, List[str]] = {
+        info : Dict[str, List[str]] = {
             'running' : [],
             'pending' : [],
             'unknown' : [],
@@ -333,50 +266,10 @@ class SlurmEnvironment(Environment[SlurmJob]):
             'PD': 'pending',
             '--': 'unknown',
         }
-        for line in info:
+        for line in raw_info:
             if line != '':
                 status, jobname = tuple(line.split('-'))
                 category = categories.get(status, 'unknown')
-                _jobs_info[category].append(jobname)
+                info[category].append(jobname)
 
-        self._jobs_info = _jobs_info
-
-    def slurm_time_and_partition(
-        self,
-        time: int,
-        buffer: float = 0.25
-    ) -> Dict[str, str]:
-        """
-        Params
-        ======
-        time: int
-            The amount of time in minutes for the job
-
-        buffer: float
-            The percent of extra time to add on as a buffer
-
-        Returns
-        =======
-        Dict[str, str]
-            The partition to use and the allocated time as a str
-        """
-        allocated_time = int(time * (1 + buffer))
-        d = int(allocated_time / (60*24))
-        h = int((allocated_time - d * 24 * 60) / 60)
-        m = int(allocated_time % 60)
-
-        short_max = (2 * 60)
-        medium_max = (1 * 24 * 60)
-        defq_max = (4 * 24 * 60)
-        # zfill(2) just pre-pads with 0's to a str length of 2
-        time_str = f'{d}-{str(h).zfill(2)}:{str(m).zfill(2)}:00'
-        if allocated_time < short_max:
-            return {'partition': 'short', 'time': time_str }
-        elif allocated_time < medium_max:
-            return {'partition': 'medium', 'time': time_str }
-        elif allocated_time < defq_max:
-            return {'partition': 'defq', 'time': time_str }
-        else:
-            raise ValueError('Requires too much time,'
-                             + f'{allocated_time}, possible to queue'
-                             + 'on the smp partition if required')
+        self._info = info
