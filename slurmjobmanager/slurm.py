@@ -139,18 +139,12 @@ class SlurmEnvironment(Environment):
         if job.name() in in_progress_jobs:
             if force:
                 self.cancel_by_name(job.name())
-                job.reset()
             else:
                 raise RuntimeError(f'Job {job.name()} in progress, force a' + ' cancel, reset and requeue with'
                                    + ' `force=True`')
 
-        if job.failed(self):
-            if force:
-                job.reset()
-            else:
-                raise RuntimeError(f'Job {job.name()} has already finished and'
-                                   + ' has failed, force a reset and requeue'
-                                   + ' with `force=True`')
+        if force:
+            job.reset()
 
         if not os.path.exists(script_path):
             self.create_slurm_script(args=args,
