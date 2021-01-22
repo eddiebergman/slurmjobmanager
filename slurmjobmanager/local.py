@@ -69,7 +69,14 @@ class LocalEnvironment(Environment):
         subprocess_args = {**subprocess_default_args, **options}
         command = job.command().split(' ')
 
-        subprocess.run(command, **subprocess_args)
+        process = subprocess.Popen(command, **subprocess_args)
+        for line in iter(process.stdout.readline, ""):
+            yield line
+        process.stdout.close()
+        return_code = process.wait()
+        if return_code:
+            raise subprocess.CalledProcessError(return_code, command)
+
         self.jobs_run.append(job)
 
     def info(self) -> Dict[str, Any]:
