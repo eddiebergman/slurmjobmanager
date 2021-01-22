@@ -69,6 +69,8 @@ class LocalEnvironment(Environment):
         subprocess_args = {**subprocess_default_args, **options}
         command = job.command().split(' ')
 
+        # On getting continuous output
+        # https://stackoverflow.com/a/4417735/5332072
         process = subprocess.Popen(command, **subprocess_args)
         for line in iter(process.stdout.readline, ""):
             yield line
