@@ -61,13 +61,15 @@ class LocalEnvironment(Environment):
 
         job.setup()
 
-        subprocess_args = {
+        subprocess_default_args = {
             'stdout': subprocess.PIPE,
             'stderr': subprocess.STDOUT,
             'text': True,
         }
+        subprocess_args = {**subprocess_default_args, **options}
         command = job.command().split(' ')
-        subprocess.run(command, {**subprocess_args, **options})
+
+        subprocess.run(command, **subprocess_args)
         self.jobs_run.append(job)
 
     def info(self) -> Dict[str, Any]:
