@@ -4,7 +4,6 @@ Specifies the kind of information a job should be able to provide
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
 from typing import Protocol
-from .environment import Environment
 
 class Job(Protocol):
 
