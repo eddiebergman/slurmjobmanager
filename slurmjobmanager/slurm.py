@@ -152,6 +152,8 @@ class SlurmEnvironment(Environment):
                                      script_path=script_path,
                                      opts=opts)
 
+        job.setup()
+
         os.system(f'sbatch {script_path}')
 
     def info(self) -> Dict[str, Any]:
