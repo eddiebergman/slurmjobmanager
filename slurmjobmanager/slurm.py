@@ -146,13 +146,14 @@ class SlurmEnvironment(Environment):
         if force:
             job.reset()
 
+        job.setup()
+
         if not os.path.exists(script_path):
             self.create_slurm_script(args=args,
                                      command=job.command(),
                                      script_path=script_path,
                                      opts=opts)
 
-        job.setup()
 
         os.system(f'sbatch {script_path}')
 
