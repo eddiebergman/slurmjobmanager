@@ -6,7 +6,7 @@ of running in local scenarios.
 # See https://docs.python.org/dev/whatsnew/3.10.html#new-features
 from __future__ import annotations
 
-import os
+import subprocess
 from typing import List, Dict, Any, Mapping
 
 from .environment import Environment
@@ -60,8 +60,16 @@ class LocalEnvironment(Environment):
                                    + ' reset and requeue with `force=True`')
 
         job.setup()
-        os.system(f'{job.command()}')
+
+        subprocess_args = {
+            'stdout': subprocess.PIPE,
+            'stderr': subprocess.STDOUT,
+            'text': True,
+        }
+        command = job.command().split(' ')
+        subprocess.run(command, {**subprocess_args, **options})
         self.jobs_run.append(job)
 
     def info(self) -> Dict[str, Any]:
         return {'jobs_run' : self.jobs_run}
+
