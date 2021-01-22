@@ -61,17 +61,24 @@ class LocalEnvironment(Environment):
 
         job.setup()
 
+
         subprocess_default_args = {
             'stdout': subprocess.PIPE,
             'stderr': subprocess.STDOUT,
-            'text': True,
+            'universal_newlines': True,
         }
         subprocess_args = {**subprocess_default_args, **options}
-        command = job.command().split(' ')
 
+        command = job.command().split(' ')
+        for output_line in self._run_command(command, subprocess_args):
+            print(output_line)
+
+        self.jobs_run.append(job)
+
+    def _run_command(self, command, args):
         # On getting continuous output
         # https://stackoverflow.com/a/4417735/5332072
-        process = subprocess.Popen(command, **subprocess_args)
+        process = subprocess.Popen(command, **args)
         for line in iter(process.stdout.readline, ""):
             yield line
         process.stdout.close()
@@ -79,8 +86,6 @@ class LocalEnvironment(Environment):
         if return_code:
             raise subprocess.CalledProcessError(return_code, command)
 
-        self.jobs_run.append(job)
 
     def info(self) -> Dict[str, Any]:
         return {'jobs_run' : self.jobs_run}
-
