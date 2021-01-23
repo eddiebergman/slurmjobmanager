@@ -178,7 +178,7 @@ class SlurmEnvironment(Environment):
         in an interactive session like IPython, you may want to manually
         call this if you think a job may have changed status.
         """
-        command = f'squeue -u {self.username} -h -o %t-%j'.split(' ')
+        command = f'squeue -u {self.username} -h -o'.split(' ') + ["%t %j%"]
         raw_info = check_output(command).decode('utf-8').split('\n')
 
         info : Dict[str, List[str]] = {
@@ -193,7 +193,7 @@ class SlurmEnvironment(Environment):
         }
         for line in raw_info:
             if line != '':
-                status, jobname = tuple(line.split('-'))
+                status, jobname = tuple(line.split(' '))
                 category = categories.get(status, 'unknown')
                 info[category].append(jobname)
 
